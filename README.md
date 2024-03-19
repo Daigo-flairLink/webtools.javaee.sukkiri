@@ -1,59 +1,94 @@
-# Eclipse WTP Java EE Tools
+# WTP Java/JakartaEE Tools SUKKIRIZED ver
 
-Thanks for your interest in this project. Check the [contributing](CONTRIBUTING.md) document for information on that.
+このプロジェクトは、Eclipse財団の公式WTPレポジトリからフォークし、
+主にServlet/Filter/Listenerに関する近時の使用に伴う不具合を
+修正したものです。
 
-## Project description
+## 前提環境
 
-The Eclipse Web Tools Platform Java EE Tools project provides Tools for developing projects
-and artifacts for deployment that comply with Java EE and Jakarta EE standards.
+このレポジトリは、Eclipse2023-12で使用されているバージョンのWTP(v3.32(=R32))から分岐しています。その前後のバージョンでの利用については、失敗する可能性があります。
 
-* https://projects.eclipse.org/projects/webtools.jeetools
-* Announcements and reminders for periodic meetings are sent out using the [wtp-dev](https://accounts.eclipse.org/mailing-list/wtp-dev) mailing list. You do not need to be a Committer to participate in either.
+## 導入により修正されるWTPの動作
 
-## Developer resources
+このレポジトリの成果物を後述の方法でインストールすると、公式WTPの以下のような動作が修正されます。
 
-Information regarding source code management, builds, coding standards, and
-more.
+### 動的Webモジュール5.0, 6.0の選択時に、アノテーションがつき、web.xmlが生成されなくなります
+公式WTPでは、動的Webモジュールが5.0以上のとき、ウィザード経由で新規作成されるServlet/Filter/Listenerにアノテーションが付与されず、かわりにweb.xmlが生成されることがありました。
 
-* https://projects.eclipse.org/projects/webtools.jeetools/developer
+この動作は、動的Webモジュールバージョン4.0以前と変化してしまっており、また、「web.xmlとアノテーションの意図しない併用」によりトラブルになることがあることから、5.0以上でも従前同様にアノテーションを利用するように変更しています。
 
-The project maintains the following source code repository (this is not a cloning URL):
+### 動的Webモジュール5.0, 6.0の選択時に、Filterの新規作成で正しいimport文が生成されるようになります
+公式WTPでは、Filterの生成時に必ず「javax.〜」が利用されます。
 
-* https://github.com/eclipse-jeetools/webtools.javaee
+そのため、動的Webモジュールバージョンが5.0以上のとき（JakartaEE10(Tomcat10)使用時）は、パッケージ名の違いから生成コードにコンパイルエラーが発生します。
 
-This project uses GitHub Issues to track ongoing development and issues.
+この修正により、正しいimport文が生成されるようになります。
 
-* Search for older issues from Bugzilla, while they last: https://bugs.eclipse.org/bugs/buglist.cgi?product=WTP+Java+EE+Tools
+### Filterの新規作成時、Filterインタフェースへの不要なimplements句が生成されないようになります
+公式WTPでは、Filterの新規作成時に、必ず「implements XXX.servlet.Filter」が付記されます。
 
-Be sure to search for existing bugs before you create another one. Remember that
-contributions are always welcome!
+しかし、親クラスが指定されていて、かつ、そのクラスがFilterインタフェースを実装しているときは、implementsは不要であることから、生成しなくしました。
 
-## Eclipse Development Process
+なお、親クラスの指定がない場合は、生成します。
 
-This Eclipse Foundation open project is governed by the Eclipse Foundation
-Development Process and operates under the terms of the Eclipse IP Policy.
+### Servlet/Filterの新規作成時、親クラスの変更で自動追加されるインタフェースは、javax/jakartaで適切に選択されるようになります
+公式WTPでは、Servletの新規作成ウィザードの1ページ目で親クラスを変更すると、3ページ目のインタフェースとして、「javax.servlet.http.Servlet」が強制追加されます。
 
-* https://eclipse.org/projects/dev_process
-* https://www.eclipse.org/org/documents/Eclipse_IP_Policy.pdf
+そのため、動的Webモジュールバージョン5.0以降で使用しているときは、エラーがでていました。
 
-## Eclipse Contributor Agreement
+この修正によりjakarta使用時には、「jakarta.servlet.http.Servlet」が強制追加されるようになります。
 
-In order to be able to contribute to Eclipse Foundation projects you must
-electronically sign the Eclipse Contributor Agreement (ECA).
+なお、同様の動作はFilterの新規作成ウィザードでも実装されています。
 
-* http://www.eclipse.org/legal/ECA.php
+### Filterの新規作成時、親クラスとして、自動的に適切なクラスが指定されるようになります
+公式WTPでは、Filterの新規作成時、「親クラスがなく、Filterインタフェースを実装する」形となっていました。
 
-The ECA provides the Eclipse Foundation with a permanent record that you agree
-that each of your contributions will comply with the commitments documented in
-the Developer Certificate of Origin (DCO). Having an ECA on file associated with
-the email address matching the "Author" field of your contribution's Git commits
-fulfills the DCO's requirement that you sign-off on your contributions.
+しかし、動的Webモジュール4.0以降ではHttpFilterを利用可能であるため、こちらが親クラスとして選択されるようになっています。
 
-For more information, please see the Eclipse Committer Handbook:
-https://www.eclipse.org/projects/handbook/#resources-commit
+また親クラスが使用される場合には、init()とdestroy()のオーバーライド用スタブはデフォルトでは生成されなくなりました（ウィザード3ページ目でチェックをつけることで生成可能です）。
 
-## Contact
+### Filterの新規作成ウィザードで機能していなかった「自動生成するスタブ」の指定が、正しく動作するようになります
+公式WTPでは、Filterの新規作成ウィザードの3ページ目にある「自動生成するスタブ」にあるチェックボックスが機能していませんでした。
 
-Contact the project developers via the project's "dev" list.
+特に、「継承した抽象メソッド」を一括で有効/無効にするチェックボックスは全く機能していなかったため、正しく機能するように変更しました。
 
-* https://dev.eclipse.org/mailman/listinfo/wtp-dev
+### 動的Webモジュール4.0以下の選択時、Filterの新規作成ウィザードは親クラスの実在検証を一部行わないようになります
+「JakartaEE10(Tomcat10) + 動的Webモジュール4.0」などの組み合わせのとき、公式WTPでは、Filterの新規作成ウィザードで「親クラスが存在しない」旨のエラーにより、途中から進むことができません。
+
+これは、ウィザード内の親クラスに、「javax.servlet.Filter」が設定される一方、クラスパスには「jakarta.servlet.Filter」しか存在しないためです。
+
+本来、このエラーは正当であり、「JakartaEE10(Tomcat10) + 動的Webモジュール4.0」のような組み合わせ自体が異常です。
+
+しかし、Servletの新規作成ウィザードでは上記エラーが表示されず、「javax.servlet.http.HttpServlet」を親クラスとするコードが生成され、CTRL+SHIFT+Oによりパッケージ名を訂正することができることから、前記、「動的Webモジュール6.0でjakarta形式のサーブレットを生成できない」という問題を回避する方法として一部で利用されることがありました。
+
+この修正は、Filterについても同様の回避方法を使うことができるようにするためのものです。具体的には、親クラスが「javax〜」でも「jakarta〜」でも、フィルタクラスであれば、新規作成を強行できるようにしています。
+
+公式WTPのFilter新規作成ウィザードでは機能していた「親クラスの妥当性検証」を一部スキップしていることから、本来はあまり望ましいものではありません。将来、当パッチが公式に取り込まれるなどして、前記の回避方法が巷で利用されることが十分現象したときに、正しい方向に解消されるべきものです。
+
+## 導入方法
+以下の手順で、当WTPを導入できます。
+
+1. 起動している場合、Eclipseを終了します。
+1. 当プロジェクトのルートフォルダで`mvn package`すると、以下の相対パスにjarファイルができます。<sup>[※1](#note1)</sup>
+  * `plugins/org.eclipse.jst.j2ee.web/target/org.eclipse.jst.j2ee.web-1.3.0-SNAPSHOT.jar`
+  * `plugins/org.eclipse.jst.servlet.ui/target/org.eclipse.jst.servlet.ui-1.2.0-SNAPSHOT.jar`
+
+1. Eclipseの導入フォルダ（Macの場合は.appの内部のContentsフォルダ内のEclipseフォルダ）を基準として、`/dropins/WTP/eclipse/plugins`フォルダに存在する以下の2つのファイルを削除（またはどこかに退避）し、かわりに、前の手順で生成した2つのjarファイルを配置します（●●●はバージョン番号）。
+    * `org.eclipse.jst.j2ee.web-1.3.0.●●●`
+    * `org.eclipse.jst.servlet.ui-1.2.0.●●●.jar`
+1. Eclipseをクリーンモードで起動します（上記作業をしてはじめての時だけで十分です）。
+  * Eclipseの場合、-cleanオプションをつけて起動します。
+  * Pleiadesの場合、Windowsならクリーン起動用のシェル（eclipse.exe -clean.cmd）が準備されています。Macの場合、`open -a "Eclipse_2023-12" --args "-clean"`で起動できます。
+
+<small id="note1">※1: 実行結果の最後に、次のメッセージが表示されますが、問題ありません。
+```
+Exception in thread "Thread-2" java.lang.NoClassDefFoundError: org/eclipse/jgit/internal/JGitText
+      at org.eclipse.jgit.internal.util.ShutdownHook.cleanup(ShutdownHook.java:85)
+      at java.base/java.lang.Thread.run(Thread.java:840)
+Caused by: java.lang.ClassNotFoundException: org.eclipse.jgit.internal.JGitText
+      ... 2 more
+```
+</small>
+
+## ライセンス
+EPL v2.0を継承します。
